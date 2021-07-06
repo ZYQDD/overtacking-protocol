@@ -1,0 +1,703 @@
+
+MODULE Server3( ot_req_isPresent, B_id_isPresent, E_ok_isPresent, E_ok, OT_over3, ID3 , UpperState  )
+	VAR 
+		state : {S1,S2,S3};
+		OT_ok : boolean;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := S1;
+		next(state) :=
+			case
+				UpperState = CarS & state = S1 & (E_ok = FALSE & E_ok_isPresent) :{ S1 };
+				UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over3 = FALSE) :{ S2 };
+				UpperState = CarS & state = S2 & (B_id_isPresent) :{ S3 };
+				UpperState = CarS & state = S2 & (ot_req_isPresent) :{ S1 };
+				UpperState = CarS & state = S3 :{ S1 };
+				TRUE             : state;
+			esac;
+
+		init(OT_ok) := TRUE;
+		next(OT_ok) :=
+			case
+				UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over3 = FALSE) :{ TRUE };
+				TRUE             : OT_ok;
+			esac;
+
+		init(Own_id) := ID3;
+		next(Own_id) :=
+			case
+				UpperState = CarS & state = S2 & (B_id_isPresent) :{ ID3 };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		OT_ok_isPresent :=  (UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over3 = FALSE) ) ;
+
+  		Own_id_isPresent :=  (UpperState = CarS & state = S2 & (B_id_isPresent) ) ;
+
+  
+MODULE Client3( M_ot_ok_isPresent, P_id_isPresent, OT_over3, ID3 , UpperState  )
+	VAR 
+		state : {C4,C3,C1,C2};
+		Timer : 0..6;
+		M_ot_req : boolean;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := C1;
+		next(state) :=
+			case
+				UpperState = CarC & state = C1 & (OT_over3 = FALSE) :{ C2 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent & Timer < 5) :{ C2 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent &Timer = 5) :{ C1 };
+				UpperState = CarC & state = C2 & (M_ot_ok_isPresent) :{ C3 };
+				UpperState = CarC & state = C3 & (P_id_isPresent) :{ C4 };
+				UpperState = CarC & state = C4 :{ C1 };
+				TRUE             : state;
+			esac;
+
+		init(Timer) := 4;
+		next(Timer) :=
+			case
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent & Timer < 5) :{ Timer + 1 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent &Timer = 5) :{ 0 };
+				TRUE             : Timer;
+			esac;
+
+		init(M_ot_req) := TRUE;
+		next(M_ot_req) :=
+			case
+				UpperState = CarC & state = C1 & (OT_over3 = FALSE) :{ TRUE };
+				TRUE             : M_ot_req;
+			esac;
+
+		init(Own_id) := ID3;
+		next(Own_id) :=
+			case
+				UpperState = CarC & state = C2 & (M_ot_ok_isPresent) :{ ID3 };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		M_ot_req_isPresent :=  (UpperState = CarC & state = C1 & (OT_over3 = FALSE) ) ;
+
+  		Own_id_isPresent :=  (UpperState = CarC & state = C2 & (M_ot_ok_isPresent) ) ;
+
+  
+MODULE CAR3( OT_isPresent, ot_req_isPresent, OT, B_id_isPresent, E_ok_isPresent, E_ok, M_ot_ok_isPresent, P_id_isPresent, ID3, OT_over3  )
+	VAR 
+		Server3: Server3(ot_req_isPresent, B_id_isPresent, E_ok_isPresent, E_ok, OT_over3, ID3 , state);
+ 		Client3: Client3(M_ot_ok_isPresent, P_id_isPresent, OT_over3, ID3 , state);
+ 		state : {CarC,CarInit,CarS};
+		over : boolean;
+		M_ot_req : boolean;
+		OT_ok : boolean;
+		Position3 : 1..3;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := CarInit;
+		next(state) :=
+			case
+				state = CarInit & (OT = TRUE & OT_isPresent &Position3 != 1) :{ CarC };
+				state = CarInit & (ot_req_isPresent) :{ CarS };
+				state = CarC & (OT_over3 = TRUE) :{ CarInit };
+				state = CarS & (OT_over3 = TRUE) :{ CarInit };
+				TRUE             : state;
+			esac;
+
+		init(over) := TRUE;
+		next(over) :=
+			case
+				state = CarC & (OT_over3 = TRUE) :{ TRUE };
+				state = CarS & (OT_over3 = TRUE) :{ TRUE };
+				TRUE             : over;
+			esac;
+
+		init(M_ot_req) := Client3.M_ot_req;
+		next(M_ot_req) :=
+			case
+				state = CarC :{ Client3.M_ot_req };
+				TRUE             : M_ot_req;
+			esac;
+
+		init(OT_ok) := Server3.OT_ok;
+		next(OT_ok) :=
+			case
+				state = CarS :{ Server3.OT_ok };
+				TRUE             : OT_ok;
+			esac;
+
+		init(Position3) := 3;
+		next(Position3) :=
+			case
+				TRUE             : Position3;
+			esac;
+
+		init(Own_id) := Server3.Own_id;
+		next(Own_id) :=
+			case
+				state = CarS :{ Server3.Own_id };
+				state = CarC :{ Client3.Own_id };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		over_isPresent :=  ( state = CarC & (OT_over3 = TRUE) )   | ( state = CarS & (OT_over3 = TRUE) ) ;
+
+ 		M_ot_req_isPresent :=  ( Client3.M_ot_req_isPresent ) ;
+
+  		OT_ok_isPresent :=  ( Server3.OT_ok_isPresent ) ;
+
+  		Own_id_isPresent :=  ( Server3.Own_id_isPresent )   | ( Client3.Own_id_isPresent ) ;
+
+ 
+MODULE Server1( ot_req_isPresent, B_id_isPresent, E_ok_isPresent, E_ok, OT_over1, ID1 , UpperState  )
+	VAR 
+		state : {S3,S2,S1};
+		OT_ok : boolean;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := S1;
+		next(state) :=
+			case
+				UpperState = CarS & state = S1 & (E_ok = FALSE & E_ok_isPresent) :{ S1 };
+				UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over1 = FALSE) :{ S2 };
+				UpperState = CarS & state = S2 & (B_id_isPresent) :{ S3 };
+				UpperState = CarS & state = S2 & (ot_req_isPresent) :{ S1 };
+				UpperState = CarS & state = S3 :{ S1 };
+				TRUE             : state;
+			esac;
+
+		init(OT_ok) := TRUE;
+		next(OT_ok) :=
+			case
+				UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over1 = FALSE) :{ TRUE };
+				TRUE             : OT_ok;
+			esac;
+
+		init(Own_id) := ID1;
+		next(Own_id) :=
+			case
+				UpperState = CarS & state = S2 & (B_id_isPresent) :{ ID1 };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		OT_ok_isPresent :=  (UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over1 = FALSE) ) ;
+
+  		Own_id_isPresent :=  (UpperState = CarS & state = S2 & (B_id_isPresent) ) ;
+
+  
+MODULE Client1( M_ot_ok_isPresent, P_id_isPresent, OT_over1, ID1 , UpperState  )
+	VAR 
+		state : {C2,C3,C4,C1};
+		Timer : 0..7;
+		M_ot_req : boolean;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := C1;
+		next(state) :=
+			case
+				UpperState = CarC & state = C1 & (OT_over1 = FALSE) :{ C2 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent & Timer < 5) :{ C2 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent &Timer = 5) :{ C1 };
+				UpperState = CarC & state = C2 & (M_ot_ok_isPresent) :{ C3 };
+				UpperState = CarC & state = C3 & (P_id_isPresent) :{ C4 };
+				UpperState = CarC & state = C4 :{ C1 };
+				TRUE             : state;
+			esac;
+
+		init(Timer) := 1;
+		next(Timer) :=
+			case
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent & Timer < 5) :{ Timer + 1 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent &Timer = 5) :{ 0 };
+				TRUE             : Timer;
+			esac;
+
+		init(M_ot_req) := TRUE;
+		next(M_ot_req) :=
+			case
+				UpperState = CarC & state = C1 & (OT_over1 = FALSE) :{ TRUE };
+				TRUE             : M_ot_req;
+			esac;
+
+		init(Own_id) := ID1;
+		next(Own_id) :=
+			case
+				UpperState = CarC & state = C2 & (M_ot_ok_isPresent) :{ ID1 };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		M_ot_req_isPresent :=  (UpperState = CarC & state = C1 & (OT_over1 = FALSE) ) ;
+
+  		Own_id_isPresent :=  (UpperState = CarC & state = C2 & (M_ot_ok_isPresent) ) ;
+
+  
+MODULE CAR1( OT_isPresent, ot_req_isPresent, OT, B_id_isPresent, E_ok_isPresent, E_ok, M_ot_ok_isPresent, P_id_isPresent, ID1, OT_over1  )
+	VAR 
+		Server1: Server1(ot_req_isPresent, B_id_isPresent, E_ok_isPresent, E_ok, OT_over1, ID1 , state);
+ 		Client1: Client1(M_ot_ok_isPresent, P_id_isPresent, OT_over1, ID1 , state);
+ 		state : {CarC,CarS,CarInit};
+		over : boolean;
+		M_ot_req : boolean;
+		OT_ok : boolean;
+		Position1 : 1..3;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := CarInit;
+		next(state) :=
+			case
+				state = CarInit & (OT = TRUE & OT_isPresent &Position1 != 1) :{ CarC };
+				state = CarInit & (ot_req_isPresent) :{ CarS };
+				state = CarC & (OT_over1 = TRUE) :{ CarInit };
+				state = CarS & (OT_over1 = TRUE) :{ CarInit };
+				TRUE             : state;
+			esac;
+
+		init(over) := TRUE;
+		next(over) :=
+			case
+				state = CarC & (OT_over1 = TRUE) :{ TRUE };
+				state = CarS & (OT_over1 = TRUE) :{ TRUE };
+				TRUE             : over;
+			esac;
+
+		init(M_ot_req) := Client1.M_ot_req;
+		next(M_ot_req) :=
+			case
+				state = CarC :{ Client1.M_ot_req };
+				TRUE             : M_ot_req;
+			esac;
+
+		init(OT_ok) := Server1.OT_ok;
+		next(OT_ok) :=
+			case
+				state = CarS :{ Server1.OT_ok };
+				TRUE             : OT_ok;
+			esac;
+
+		init(Position1) := 1;
+		next(Position1) :=
+			case
+				TRUE             : Position1;
+			esac;
+
+		init(Own_id) := Server1.Own_id;
+		next(Own_id) :=
+			case
+				state = CarS :{ Server1.Own_id };
+				state = CarC :{ Client1.Own_id };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		over_isPresent :=  ( state = CarC & (OT_over1 = TRUE) )   | ( state = CarS & (OT_over1 = TRUE) ) ;
+
+ 		M_ot_req_isPresent :=  ( Client1.M_ot_req_isPresent ) ;
+
+  		OT_ok_isPresent :=  ( Server1.OT_ok_isPresent ) ;
+
+  		Own_id_isPresent :=  ( Server1.Own_id_isPresent )   | ( Client1.Own_id_isPresent ) ;
+
+ MODULE NonStrictDelay_int(initvalue,input,input_isPresent)
+	VAR
+		--out : -100..100;
+		out : {0,111,222,333};
+		out1 : boolean;
+	ASSIGN
+		init(out) := initvalue;
+		next(out) := 
+			case
+				(input < 500) & (input > -100) : input;
+				TRUE : 0;
+			esac;
+		init(out1) := TRUE;
+		next(out1) := input_isPresent;
+	DEFINE
+		output := out;
+		output_isPresent := out1;
+MODULE Bernoulli(trueProbability)--参数又用户设置，为1-10之间的一个数，表示TRUE值概率
+	VAR
+		fre : 1..10;
+	ASSIGN
+		fre := {1,2,3,4,5,6,7,8,9,10};--fre每次随机去1-10中的一个数值
+	DEFINE
+		output :=
+			case
+				fre <= trueProbability : TRUE;
+				TRUE : FALSE;
+			esac;
+		output_isPresent := TRUE;
+
+MODULE DiscreteRandomSource
+	VAR
+		out : {2,3};
+	DEFINE
+		output := out;
+		output_isPresent := TRUE;
+MODULE When(input, input_isPresent ,control,control_isPresent)
+	DEFINE
+		output :=
+			case
+				control & input_isPresent : input;
+				TRUE : 0;
+			esac;
+		output_isPresent := control & input_isPresent & control_isPresent;
+MODULE Comparator(left,left_isPresent,right,right_isPresent,comparison)  
+--两个输入端口有一个为缺省值，则输出缺省值
+	DEFINE
+		output :=
+			case
+				comparison=1 & (left_isPresent & right_isPresent) : left>right;
+				--两输入端口都不为缺省值，才进行比较
+				comparison=2 & (left_isPresent & right_isPresent) : left>=right;
+				comparison=3 & (left_isPresent & right_isPresent) : left<right;
+				comparison=4 & (left_isPresent & right_isPresent) : left<=right;
+				comparison=5 & (left_isPresent & right_isPresent) : left=right;
+				TRUE : FALSE;
+			esac;
+		output_isPresent := left_isPresent & right_isPresent;
+MODULE Const(value)--输入常数value
+	DEFINE
+		output := value;
+		output_isPresent := TRUE;--永为非缺省值
+MODULE IsPresent(input,input_isPresent)
+	DEFINE
+		output := input_isPresent;
+		output_isPresent :=TRUE;
+MODULE NonStrictDelay_boolean(initvalue,input,input_isPresent)
+	VAR
+		out : boolean;
+		out1 : boolean;
+	ASSIGN
+		init(out) := initvalue;
+		next(out) := input;
+		init(out1) := TRUE;
+		next(out1) := input_isPresent;
+	DEFINE
+		output := out;
+		output_isPresent := out1;
+
+MODULE Server2( ot_req_isPresent, B_id_isPresent, E_ok_isPresent, E_ok, OT_over2, ID2 , UpperState  )
+	VAR 
+		state : {S1,S3,S2};
+		OT_ok : boolean;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := S1;
+		next(state) :=
+			case
+				UpperState = CarS & state = S1 & (E_ok = FALSE & E_ok_isPresent) :{ S1 };
+				UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over2 = FALSE) :{ S2 };
+				UpperState = CarS & state = S2 & (B_id_isPresent) :{ S3 };
+				UpperState = CarS & state = S2 & (ot_req_isPresent) :{ S1 };
+				UpperState = CarS & state = S3 :{ S1 };
+				TRUE             : state;
+			esac;
+
+		init(OT_ok) := TRUE;
+		next(OT_ok) :=
+			case
+				UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over2 = FALSE) :{ TRUE };
+				TRUE             : OT_ok;
+			esac;
+
+		init(Own_id) := ID2;
+		next(Own_id) :=
+			case
+				UpperState = CarS & state = S2 & (B_id_isPresent) :{ ID2 };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		OT_ok_isPresent :=  (UpperState = CarS & state = S1 & (E_ok = TRUE & E_ok_isPresent & OT_over2 = FALSE) ) ;
+
+  		Own_id_isPresent :=  (UpperState = CarS & state = S2 & (B_id_isPresent) ) ;
+
+  
+MODULE Client2( M_ot_ok_isPresent, P_id_isPresent, OT_over2, ID2 , UpperState  )
+	VAR 
+		state : {C1,C4,C3,C2};
+		Timer : 0..8;
+		M_ot_req : boolean;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := C1;
+		next(state) :=
+			case
+				UpperState = CarC & state = C1 & (OT_over2 = FALSE) :{ C2 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent & Timer < 5) :{ C2 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent &Timer = 5) :{ C1 };
+				UpperState = CarC & state = C2 & (M_ot_ok_isPresent) :{ C3 };
+				UpperState = CarC & state = C3 & (P_id_isPresent) :{ C4 };
+				UpperState = CarC & state = C4 :{ C1 };
+				TRUE             : state;
+			esac;
+
+		init(Timer) := 3;
+		next(Timer) :=
+			case
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent & Timer < 5) :{ Timer + 1 };
+				UpperState = CarC & state = C2 & (!M_ot_ok_isPresent &Timer = 5) :{ 0 };
+				TRUE             : Timer;
+			esac;
+
+		init(M_ot_req) := TRUE;
+		next(M_ot_req) :=
+			case
+				UpperState = CarC & state = C1 & (OT_over2 = FALSE) :{ TRUE };
+				TRUE             : M_ot_req;
+			esac;
+
+		init(Own_id) := ID2;
+		next(Own_id) :=
+			case
+				UpperState = CarC & state = C2 & (M_ot_ok_isPresent) :{ ID2 };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		M_ot_req_isPresent :=  (UpperState = CarC & state = C1 & (OT_over2 = FALSE) ) ;
+
+  		Own_id_isPresent :=  (UpperState = CarC & state = C2 & (M_ot_ok_isPresent) ) ;
+
+  
+MODULE CAR2( OT_isPresent, ot_req_isPresent, OT, B_id_isPresent, E_ok_isPresent, E_ok, M_ot_ok_isPresent, P_id_isPresent, ID2, OT_over2  )
+	VAR 
+		Server2: Server2(ot_req_isPresent, B_id_isPresent, E_ok_isPresent, E_ok, OT_over2, ID2 , state);
+ 		Client2: Client2(M_ot_ok_isPresent, P_id_isPresent, OT_over2, ID2 , state);
+ 		state : {CarC,CarS,CarInit};
+		over : boolean;
+		M_ot_req : boolean;
+		OT_ok : boolean;
+		Position2 : 1..3;
+		Own_id : {0,111,222,333};
+	ASSIGN 
+		init(state) := CarInit;
+		next(state) :=
+			case
+				state = CarInit & (OT = TRUE & OT_isPresent &Position2 != 1) :{ CarC };
+				state = CarInit & (ot_req_isPresent) :{ CarS };
+				state = CarC & (OT_over2 = TRUE) :{ CarInit };
+				state = CarS & (OT_over2 = TRUE) :{ CarInit };
+				TRUE             : state;
+			esac;
+
+		init(over) := TRUE;
+		next(over) :=
+			case
+				state = CarC & (OT_over2 = TRUE) :{ TRUE };
+				state = CarS & (OT_over2 = TRUE) :{ TRUE };
+				TRUE             : over;
+			esac;
+
+		init(M_ot_req) := Client2.M_ot_req;
+		next(M_ot_req) :=
+			case
+				state = CarC :{ Client2.M_ot_req };
+				TRUE             : M_ot_req;
+			esac;
+
+		init(OT_ok) := Server2.OT_ok;
+		next(OT_ok) :=
+			case
+				state = CarS :{ Server2.OT_ok };
+				TRUE             : OT_ok;
+			esac;
+
+		init(Position2) := 2;
+		next(Position2) :=
+			case
+				TRUE             : Position2;
+			esac;
+
+		init(Own_id) := Server2.Own_id;
+		next(Own_id) :=
+			case
+				state = CarS :{ Server2.Own_id };
+				state = CarC :{ Client2.Own_id };
+				TRUE             : Own_id;
+			esac;
+
+
+	DEFINE
+		over_isPresent :=  ( state = CarC & (OT_over2 = TRUE) )   | ( state = CarS & (OT_over2 = TRUE) ) ;
+
+ 		M_ot_req_isPresent :=  ( Client2.M_ot_req_isPresent ) ;
+
+  		OT_ok_isPresent :=  ( Server2.OT_ok_isPresent ) ;
+
+  		Own_id_isPresent :=  ( Server2.Own_id_isPresent )   | ( Client2.Own_id_isPresent ) ;
+
+ MODULE Absent_boolean
+	DEFINE
+		output := FALSE;
+		output_isPresent := FALSE;
+MODULE Absent_int
+	DEFINE
+		output := 0;
+		output_isPresent := FALSE;
+MODULE ID2(Aux_id2, CAR2_state, Client2_state, Server2_state)
+	VAR
+		value : {0,111,222,333};
+	ASSIGN
+		init(value) := 222;
+		next(value) :=
+			case
+				CAR2_state = CarC & Client2_state = C4 : {Aux_id2};
+				CAR2_state = CarS & Server2_state = S3 : {Aux_id2};
+				TRUE       :        value;
+			esac;
+MODULE ID1(Aux_id1, CAR1_state, Client1_state, Server1_state)
+	VAR
+		value : {0,111,222,333};
+	ASSIGN
+		init(value) :=111;
+		next(value) :=
+			case
+				CAR1_state = CarC & Client1_state = C4 : {Aux_id1};
+				CAR1_state = CarS & Server1_state = S3 : {Aux_id1};
+				TRUE       :        value;
+			esac;
+MODULE Aux_id1(B_id_isPresent, B_id, P_id_isPresent, P_id, CAR1_state, Client1_state, Server1_state)
+	VAR
+		value : {0,111,222,333};
+	ASSIGN
+		init(value) :=0;
+		next(value) :=
+			case
+				CAR1_state = CarC & Client1_state = C3 & (P_id_isPresent) : {P_id};
+				CAR1_state = CarC & Client1_state = C4 : {0};
+				CAR1_state = CarS & Server1_state = S2 & (B_id_isPresent) : {B_id};
+				CAR1_state = CarS & Server1_state = S3 : {0};
+				TRUE       :        value;
+			esac;
+MODULE ID3(Aux_id3, CAR3_state, Client3_state, Server3_state)
+	VAR
+		value : {0,111,222,333};
+	ASSIGN
+		init(value) :=333;
+		next(value) :=
+			case
+				CAR3_state = CarC & Client3_state = C4 : {Aux_id3};
+				CAR3_state = CarS & Server3_state = S3 : {Aux_id3};
+				TRUE       :        value;
+			esac;
+MODULE OT_over1(OT_isPresent, OT, Position1, ot_req_isPresent, CAR1_state, Client1_state, Server1_state)
+	VAR
+		value : boolean;
+	ASSIGN
+		init(value) :=TRUE;
+		next(value) :=
+			case
+				CAR1_state = CarInit & (OT = TRUE & OT_isPresent &Position1 != 1) : {FALSE};
+				CAR1_state = CarInit & (ot_req_isPresent) : {FALSE};
+				CAR1_state = CarC & Client1_state = C4 : {TRUE};
+				CAR1_state = CarS & Server1_state = S3 : {TRUE};
+				TRUE       :        value;
+			esac;
+MODULE OT_over2(OT_isPresent, OT, Position2, ot_req_isPresent, CAR2_state, Client2_state, Server2_state)
+	VAR
+		value : boolean;
+	ASSIGN
+		init(value) :=TRUE;
+		next(value) :=
+			case
+				CAR2_state = CarInit & (OT = TRUE & OT_isPresent &Position2 != 1) : {FALSE};
+				CAR2_state = CarInit & (ot_req_isPresent) : {FALSE};
+				CAR2_state = CarC & Client2_state = C4 : {TRUE};
+				CAR2_state = CarS & Server2_state = S3 : {TRUE};
+				TRUE       :        value;
+			esac;
+MODULE OT_over3(OT_isPresent, OT, Position3, ot_req_isPresent, CAR3_state, Client3_state, Server3_state)
+	VAR
+		value : boolean;
+	ASSIGN
+		init(value) :=FALSE;
+		next(value) :=
+			case
+				CAR3_state = CarInit & (OT = TRUE & OT_isPresent &Position3 != 1) : {FALSE};
+				CAR3_state = CarInit & (ot_req_isPresent) : {FALSE};
+				CAR3_state = CarC & Client3_state = C4 : {TRUE};
+				CAR3_state = CarS & Server3_state = S3 : {TRUE};
+				TRUE       :        value;
+			esac;
+MODULE Aux_id3(B_id_isPresent, B_id, P_id_isPresent, P_id, CAR3_state, Client3_state, Server3_state)
+	VAR
+		value : {0,111,222,333};
+	ASSIGN
+		init(value) :=0;
+		next(value) :=
+			case
+				CAR3_state = CarC & Client3_state = C3 & (P_id_isPresent) : {P_id};
+				CAR3_state = CarC & Client3_state = C4 : {0};
+				CAR3_state = CarS & Server3_state = S2 & (B_id_isPresent) : {B_id};
+				CAR3_state = CarS & Server3_state = S3 : {0};
+				TRUE       :        value;
+			esac;
+MODULE Aux_id2(B_id_isPresent, B_id, P_id_isPresent, P_id, CAR2_state, Client2_state, Server2_state)
+	VAR
+		value : {0,111,222,333};
+	ASSIGN
+		init(value) :=0;
+		next(value) :=
+			case
+				CAR2_state = CarC & Client2_state = C3 & (P_id_isPresent) : {P_id};
+				CAR2_state = CarC & Client2_state = C4 : {0};
+				CAR2_state = CarS & Server2_state = S2 & (B_id_isPresent) : {B_id};
+				CAR2_state = CarS & Server2_state = S3 : {0};
+				TRUE       :        value;
+			esac;
+
+
+MODULE main 
+	VAR 
+		CAR3: CAR3(Comparator.output_isPresent, Absent3.output_isPresent, Comparator.output, Absent4.output_isPresent, Absent.output_isPresent, Absent.output, CAR2.OT_ok_isPresent, CAR2.Own_id_isPresent, ID3.value, OT_over3.value );
+		CAR1: CAR1(Absent2.output_isPresent, CAR2.M_ot_req_isPresent, Absent2.output, NonStrictDelay2.output_isPresent, Bernoulli2.output_isPresent, Bernoulli2.output, Absent5.output_isPresent, Absent6.output_isPresent, ID1.value, OT_over1.value );
+		CAR2: CAR2(Comparator2.output_isPresent, CAR3.M_ot_req_isPresent, Comparator2.output, NonStrictDelay.output_isPresent, Bernoulli.output_isPresent, Bernoulli.output, CAR1.OT_ok_isPresent, CAR1.Own_id_isPresent, ID2.value, OT_over2.value );
+		Absent6 : Absent_int;
+		Absent4 : Absent_int;
+		DiscreteRandomSource : DiscreteRandomSource;
+		When : When(DiscreteRandomSource.output,DiscreteRandomSource.output_isPresent,NonStrictDelay3.output,NonStrictDelay3.output_isPresent);
+		NonStrictDelay2 : NonStrictDelay_int(NonStrictDelay2_initvalue,CAR2.Own_id,CAR2.Own_id_isPresent);
+		NonStrictDelay : NonStrictDelay_int(NonStrictDelay_initvalue,CAR3.Own_id,CAR3.Own_id_isPresent);
+		Const : Const(Const_value);
+		Const2 : Const(Const2_value);
+		NonStrictDelay3 : NonStrictDelay_boolean(NonStrictDelay3_initvalue,IsPresent.output,IsPresent.output_isPresent);
+		IsPresent : IsPresent(CAR2.over,CAR2.over_isPresent);
+		Bernoulli2 : Bernoulli(Bernoulli2_trueProbability);
+		Bernoulli : Bernoulli(Bernoulli_trueProbability);
+		Absent5 : Absent_boolean;
+		Absent : Absent_boolean;
+		Absent2 : Absent_boolean;
+		Absent3 : Absent_boolean;
+		Comparator2 : Comparator(Const2.output,Const2.output_isPresent,When.output,When.output_isPresent,Comparator2_comparison);
+		Comparator : Comparator(Const.output,Const.output_isPresent,When.output,When.output_isPresent,Comparator_comparison);
+		ID2 : ID2(Aux_id2.value, CAR2.state, CAR2.Client2.state, CAR2.Server2.state);
+		ID1 : ID1(Aux_id1.value, CAR1.state, CAR1.Client1.state, CAR1.Server1.state);
+		Aux_id1 : Aux_id1(NonStrictDelay2.output_isPresent, NonStrictDelay2.output, Absent6.output_isPresent, Absent6.output, CAR1.state, CAR1.Client1.state, CAR1.Server1.state);
+		ID3 : ID3(Aux_id3.value, CAR3.state, CAR3.Client3.state, CAR3.Server3.state);
+		OT_over1 : OT_over1(Absent2.output_isPresent, Absent2.output, CAR1.Position1, CAR2.M_ot_req_isPresent, CAR1.state, CAR1.Client1.state, CAR1.Server1.state);
+		OT_over2 : OT_over2(Comparator2.output_isPresent, Comparator2.output, CAR2.Position2, CAR3.M_ot_req_isPresent, CAR2.state, CAR2.Client2.state, CAR2.Server2.state);
+		OT_over3 : OT_over3(Comparator.output_isPresent, Comparator.output, CAR3.Position3, Absent3.output_isPresent, CAR3.state, CAR3.Client3.state, CAR3.Server3.state);
+		Aux_id3 : Aux_id3(Absent4.output_isPresent, Absent4.output, CAR2.Own_id_isPresent, CAR2.Own_id, CAR3.state, CAR3.Client3.state, CAR3.Server3.state);
+		Aux_id2 : Aux_id2(NonStrictDelay.output_isPresent, NonStrictDelay.output, CAR1.Own_id_isPresent, CAR1.Own_id, CAR2.state, CAR2.Client2.state, CAR2.Server2.state);
+	DEFINE
+		Const_value := 3;
+		NonStrictDelay2_initvalue := 0;
+		NonStrictDelay_initvalue := 0;
+		Bernoulli_trueProbability := 5;
+		Bernoulli2_trueProbability := 5;
+		NonStrictDelay3_initvalue := TRUE;
+		Comparator2_comparison := 5;
+		Const2_value := 2;
+		Comparator_comparison := 5;
